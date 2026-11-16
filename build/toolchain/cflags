@@ -1,0 +1,6 @@
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+"-specs=C:/Users/admin/Desktop/Semestr_5/Space/rekrutacja/Zadanie_1/build/specs/picolibc.specs"

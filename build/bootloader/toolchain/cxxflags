@@ -1,0 +1,7 @@
+"-specs=C:/Users/admin/Desktop/Semestr_5/Space/rekrutacja/Zadanie_1/build/bootloader/specs/picolibc.specs"
+-Wno-frame-address
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+-fno-rtti
