@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "esp_system.h"
 #include "esp_console.h"
 #include "nvs_flash.h"
@@ -36,17 +37,66 @@ static int set_cmd(int argc, char **argv) {
         err = nvs_set_u8(handle, key, 0);
     }else if (strcmp(val_str, "true") == 0) {
         err = nvs_set_u8(handle, key, 1);
-    }else {
-        // czy liczba
+    }
+    else {
         char *endptr;
-        long val_int = strtol(val_str, &endptr, 10);
-        
-        if (*endptr == '\0') {
-            err = nvs_set_i32(handle, key, (int32_t)val_int);
-        }else{
-            err = nvs_set_str(handle, key, val_str);
-        }
-        
+        if (strchr(val_str, '.') != NULL) {
+            float val_float = strtof(val_str, &endptr);
+            if (*endptr == '\0') {
+                err = nvs_set_blob(handle, key, &val_float, sizeof(float));
+            }else {
+                err = nvs_set_str(handle, key, val_str);
+            }
+        }else {
+            // czy liczba calkowita
+            long val_int = strtol(val_str, &endptr, 10);
+            
+            if (*endptr == '\0') {
+                err = nvs_set_i32(handle, key, (int32_t)val_int);
+            }else{
+                err = nvs_set_str(handle, key, val_str);
+            }
+        }    
+    }
+
+    if (err == ESP_OK) {
+        nvs_commit(handle);
+    }
+
+    nvs_close(handle);
+    return 0;
+}
+
+static struct{
+    struct arg_str *key;
+    struct arg_end *end;
+} del_args;
+
+static int del_cmd(int argc, char **argv) {
+    int error_count = arg_parse(argc, argv, (void **)&del_args);
+    if (error_count != 0) {
+        arg_print_errors(stderr, del_args.end, argv[0]);
+        return 1;
+    }
+
+    const char *key = del_args.key->sval[0];
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+
+    if (err != ESP_OK) {
+        printf("Blad otwarcia pamieci NVS\n");
+        return 1;
+    }
+
+    err = nvs_erase_key(handle, key);
+
+    if (err == ESP_OK) {
+        printf("Pomyslnie usunieto zmienna: %s\n", key);
+    }else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("Zmienna %s nie istnieje\n", key);
+    }else {
+        printf("Napotkano blad przy probie usuwania zmiennej %s\n", key);
+        printf("%s\n", esp_err_to_name(err));
     }
 
     if (err == ESP_OK) {
@@ -73,6 +123,20 @@ void register_set_cmd(void) {
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
 }
 
+void register_del_cmd(void) {
+    del_args.key = arg_str1(NULL, NULL, "<nazwa>", "Nazwa zmiennej do usuniecia");
+    del_args.end = arg_end(1);
+
+    const esp_console_cmd_t cmd = {
+        .command = "del",
+        .help = "Usuwa zmienna konfiguracyjna",
+        .hint = NULL,
+        .func = &del_cmd,
+        .argtable = &del_args
+    };
+    
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
 
 
 void app_main(void){
@@ -90,6 +154,7 @@ void app_main(void){
     
     esp_console_register_help_command();
     register_set_cmd();
+    register_del_cmd();
 
 
     ESP_ERROR_CHECK(esp_console_new_repl_stdio(&repl_config, &repl));
