@@ -34,25 +34,77 @@ static int set_cmd(int argc, char **argv) {
     }
 
     if (strcmp(val_str, "false") == 0) {
-        err = nvs_set_u8(handle, key, 0);
+        uint8_t x = 33;
+        esp_err_t err_get = nvs_get_u8(handle, key, &x);
+        
+        if (err_get == ESP_OK && x == 0) {
+            printf("Już istnieje zmienna: %s o zadanej wartości\n", key);
+        } else {
+            err = nvs_set_u8(handle, key, 0);
+            printf("Zapisano zmienną: %s\n", key);
+        }
     }else if (strcmp(val_str, "true") == 0) {
-        err = nvs_set_u8(handle, key, 1);
+        uint8_t x = 33;
+        esp_err_t err_get = nvs_get_u8(handle, key, &x);
+        if (err_get == ESP_OK && x == 1) {
+            printf("Już istnieje zmienna: %s o zadanej wartości\n", key);
+        } else {
+            err = nvs_set_u8(handle, key, 1);
+            printf("Zapisano zmienną: %s\n", key);
+        }
     }
     else {
         char *endptr;
         if (strchr(val_str, '.') != NULL) {
             float val_float = strtof(val_str, &endptr);
             if (*endptr == '\0') {
-                err = nvs_set_blob(handle, key, &val_float, sizeof(float));
+                float x = 33.0;
+                size_t float_size = sizeof(float);
+                esp_err_t blob_err = nvs_get_blob(handle, key, &x, &float_size);
+
+                if  (blob_err == ESP_OK && x == val_float) {
+                    printf("Już istnieje zmienna: %s o zadanej wartości\n", key);
+                } else{
+                    err = nvs_set_blob(handle, key, &val_float, sizeof(float));
+                    printf("Zapisano zmienną: %s\n", key);
+                }
             }else {
-                err = nvs_set_str(handle, key, val_str);
+                size_t str_len = 0;
+                uint8_t should_write = 1;
+                esp_err_t err_get = nvs_get_str(handle, key, NULL, &str_len); // sprawdza dlugosc stringa
+
+                if (err_get == ESP_OK) {
+                        char *current_str = malloc(str_len);
+                    if(current_str != NULL){
+                        nvs_get_str(handle, key, current_str, &str_len);
+                        
+                        if(strcmp(current_str, val_str) == 0){
+                            printf("Juz istnieje zmienna: %s o zadanej wartosci\n", key);
+                            should_write = 0;
+                        }
+                        free(current_str);
+                    }
+                }
+                if (should_write) {
+                    err = nvs_set_str(handle, key, val_str);
+                    printf("Zapisano zmienną: %s\n", key);
+                }
             }
         }else {
             // czy liczba calkowita
             long val_int = strtol(val_str, &endptr, 10);
-            
+
             if (*endptr == '\0') {
-                err = nvs_set_i32(handle, key, (int32_t)val_int);
+                int32_t x = 33;
+                esp_err_t err_get = nvs_get_i32(handle, key, &x);
+
+                if (err_get == ESP_OK && x == val_int) {
+                    printf("Już istnieje zmienna: %s o zadanej wartości\n", key);
+                } else {
+                    err = nvs_set_i32(handle, key, (int32_t)val_int);
+                    printf("Zapisano zmienną: %s\n", key);
+                }
+
             }else{
                 err = nvs_set_str(handle, key, val_str);
             }
@@ -121,7 +173,7 @@ static int get_cmd(int argc, char **argv) {
 
     const char *key = get_args.key->sval[0];
     nvs_handle_t handle;
-    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
 
     if (err != ESP_OK) {
         printf("Blad otwarcia pamieci NVS\n");
