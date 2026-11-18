@@ -107,6 +107,78 @@ static int del_cmd(int argc, char **argv) {
     return 0;
 }
 
+static struct{
+    struct arg_str *key; 
+    struct arg_end *end;
+} get_args;
+
+static int get_cmd(int argc, char **argv) {
+    int error_count = arg_parse(argc, argv, (void **)&get_args);
+    if(error_count != 0) {
+        arg_print_errors(stderr, get_args.end, argv[0]);
+        return 1;
+    }
+
+    const char *key = get_args.key->sval[0];
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+
+    if (err != ESP_OK) {
+        printf("Blad otwarcia pamieci NVS\n");
+        return 1;
+    }
+
+    int32_t val_int;
+    err = nvs_get_i32(handle, key, &val_int);
+    if (err == ESP_OK) {
+        printf("%s = ", key);
+        printf("%ld\n", (long)val_int);
+
+        nvs_close(handle);
+        return 0;
+    }
+
+    uint8_t val_bool;
+    err = nvs_get_u8(handle, key, &val_bool);
+    if (err == ESP_OK) {
+        printf("%s = ", key);
+        printf("%s\n", val_bool ? "true" : "false");
+
+        nvs_close(handle);
+        return 0;
+    }
+
+    float val_float;
+    size_t size_float = sizeof(float);
+    err = nvs_get_blob(handle, key, &val_float, &size_float);
+    if (err == ESP_OK) {
+        printf("%s = ", key);
+        printf("%f\n", (float)val_float);
+
+        nvs_close(handle);
+        return 0;
+    }
+
+    size_t length = 0;
+    err = nvs_get_str(handle, key, NULL, &length);
+    if (err == ESP_OK) {
+        char *val_str = malloc(length);
+        if (val_str != NULL) {
+            nvs_get_str(handle, key, val_str, &length);
+            printf("%s = %s\n", key, val_str);
+            free(val_str);
+
+            nvs_close(handle);
+            return 0;
+        }
+    }
+
+    printf("Nie znaleziono zmiennej %s\n", key);
+
+    nvs_close(handle);
+    return 0;
+}
+
 void register_set_cmd(void) {
     set_args.key = arg_str1(NULL, NULL, "<nazwa>", "Nazwa zmiennej");
     set_args.val = arg_str1(NULL, NULL, "<wartosc>", "Wartosc zmiennej (bool, int lub tekst)");
@@ -138,6 +210,20 @@ void register_del_cmd(void) {
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
 }
 
+void register_get_cmd(void) {
+    get_args.key = arg_str1(NULL, NULL, "<nazwa>", "Nazwa zmiennej do odczytania");
+    get_args.end = arg_end(1);
+
+    const esp_console_cmd_t cmd = {
+        .command = "get",
+        .help = "Zwraca wartosc podanej zmiennej",
+        .hint = NULL,
+        .func = &get_cmd,
+        .argtable = &get_args
+    };
+    
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
 
 void app_main(void){
     esp_err_t err = nvs_flash_init();
@@ -155,6 +241,7 @@ void app_main(void){
     esp_console_register_help_command();
     register_set_cmd();
     register_del_cmd();
+    register_get_cmd();
 
 
     ESP_ERROR_CHECK(esp_console_new_repl_stdio(&repl_config, &repl));
